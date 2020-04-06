@@ -24,6 +24,15 @@ from lib.callbacks import ConfusionMatrixCB, scheduler_3_stage
 '''
 Script for training on Imagenette dataset.
 '''
+
+'''
+Commandline inputs: 
+
+ -d IMAGENETTE:
+    -m ResNet18 -l 0.1 -w 1e-3 -e 50 -r 1 -b 128 -s scheduler_3_stage -p True
+    -m ResNet18_TD -l 0.05 -w 1e-3 -e 50 -r 1 -b 64 -s scheduler_3_stage -p True
+'''
+
 def random_crop(img, random_crop_size):
     # Note: image_data_format is 'channel_last'
     assert img.shape[2] == 3

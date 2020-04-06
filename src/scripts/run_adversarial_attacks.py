@@ -23,6 +23,36 @@ Script for running the 2nd, Adversarial robustness experiment.
 Set -abl True, for assessing the input robustness of a TD network.
 '''
 
+'''
+Commandline inputs: 
+
+ -d MNIST
+    -m LeNetFC -r 3 -b 128 -ab 128 
+    -m LeNetFC_TD -r 3 -b 128 -ab 128 -w 0 -abl True
+    -m NIN_light -r 3 -b 128 -ab 128
+    -m NIN_light_TD -r 3 -b 128 -ab 128 -w 0 -abl True
+
+ -d FMNIST (Fashion-MNIST)
+    -m LeNetFC -r 3 -b 128 -ab 128
+    -m LeNetFC_TD -r 3 -b 128 -ab 128 -w 0 -abl True
+    -m NIN_light -l -r 3 -b 128 -ab 128
+    -m NIN_light_TD -r 3 -b 128 -ab 128 -w 0 -abl True
+
+ -d CIFAR10
+    -m ResNet -r 3 -b 128 -ab 128 -p True
+    -m ResNet_TD -r 3 -b 128 -ab 128 -p True -w 5e-4 -abl True
+    -m NIN -r 3 -b 128 -ab 128 -p True
+    -m NIN_TD -r 3 -b 128 -ab 128 -p True -w 5e-4 -abl True
+
+    augmented cases:
+    -m ResNet -r 3 -b 128 -ab 128 -p True -ex aug 
+    -m ResNet_TD -r 3 -b 128 -ab 128 -p True -ex aug -w 1e-4 -abl True
+    -m NIN -r 3 -b 128 -ab 128 -p True -ex aug
+    -m NIN_TD -r 3 -b 128 -ab 128 -p True -ex aug -w 1e-4 -abl True
+
+NOTE: The _uni and _rev TD variants share the inputs of the corresponding TD.
+'''
+
 
 def setup():
 
@@ -143,6 +173,7 @@ def run_attacks(args, filepath, x_test, y_test, y_test_onehot, attacks, m_train,
     y_pred = np.argmax(model.predict(x_test - m_train, batch_size=args.batch_size), axis=-1)
     or_acc = np.sum(y_test == y_pred)
     print(f"Test loss: {test_loss}, test acc: {test_acc}")
+    # print(f"Or acc: ", or_acc)
 
     # For extracting statistics. Initialising with empty lists
     if os.path.exists(filepath['output'] + filepath['dataset'] + args.model_name + '.npz'):

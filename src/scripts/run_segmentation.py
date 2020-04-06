@@ -27,6 +27,15 @@ of 150000, 25000 training and testing samples respectively. Class weights are ex
 for dealing with class-imbalance.
 '''
 
+'''
+Commandline inputs: 
+
+ -d FMNIST_S (Fashion-MNIST)
+    -m Unet -l 0.01 -w 0 -e 20 -r 4 -b 128 -v 0.1 -s NA
+    -m FCN -l 0.01 -w 0 -e 20 -r 4 -b 128 -v 0.1 -s NA
+    -m TD -l 0.01 -w 0 -e 20 -r 4 -b 128 -v 0.1 -s NA
+'''
+
 
 def extract_segmentation_mask(X, y, thres, n_classes=12):
 

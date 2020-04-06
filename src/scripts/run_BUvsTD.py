@@ -344,7 +344,7 @@ def main():
 
     x_train, x_test, y_train, y_test, x_test_dset, test_steps = preprocessing(args)
     train(args, filepath, f_output, model_n=args.model_name, y_train=y_train, y_test=y_test, test_steps=test_steps,
-          x_test_dset=x_test_dset, x_train=x_train, method='tf', save_all_weights=True)
+          x_test_dset=x_test_dset, x_train=x_train, method='tf', save_all_weights=False)
 
     print(f"Total duration of the experiment: {time.time() - start}", file=f_output)
     finalize(f_output)

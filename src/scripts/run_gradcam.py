@@ -12,6 +12,29 @@ from scripts.run_imagenette import ImagenetteGenerator
 from scripts.run_BUvsTD import parse_input
 
 
+'''
+Script for running the 3rd experiment, explainality and localization.
+For running on MNIST and Fashion-MNIST, 4 checkpoints of models trained from scratch are needed.
+To this goal, train NIN_light and NIN_light_TD by setting the argument `save_all_weight=True`, of method train
+in main() of run_BUvsTD.py.
+'''
+
+'''
+Commandline inputs: 
+
+ -d MNIST
+    -m NIN_light -b 128 -r 4
+    -m NIN_light_TD -b 128 -r 4
+
+ -d FMNIST (Fashion-MNIST)
+    -m NIN_light -b 128 -r 4
+    -m NIN_light_TD -b 128 -r 4
+
+ -d IMAGENETTE:
+    -m ResNet18 -b 128 -r 1 -p True
+    -m ResNet18_TD -b 128 -r 1 -p True
+'''
+
 def grad_cam_batch(input_model, images, classes, layer_name):
     """GradCAM method for visualizing input saliency.
     Same as grad_cam but processes multiple images in one run."""
