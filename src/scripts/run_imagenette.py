@@ -54,7 +54,8 @@ class ImagenetteGenerator_inmem(Sequence):
         self.crop_size = crop_size
         self.val = val
 
-        self.statistics = self.extract_statistics(self.X)
+        if not self.val:
+            self.statistics = self.extract_statistics(self.X)
 
         self.augmenter = ImageDataGenerator(horizontal_flip=True)
         self.indexes = np.arange(len(self.X), dtype=int)
@@ -66,27 +67,39 @@ class ImagenetteGenerator_inmem(Sequence):
         if self.shuffle:
             np.random.shuffle(self.indexes)
 
-    def extract_statistics(self, X):
+    def extract_statistics(self, x):
 
         statistics = {}
+        in_shape = x.shape
+        x = x.reshape(-1, in_shape[1] * in_shape[2], in_shape[-1])
 
-        statistics['max'] = np.max(X)
-        if statistics['max'] > 1:
-            X /= statistics['max']
+        statistics['mean'] = np.mean(x, axis=1, keepdims=True)
+        statistics['std'] = np.std(x, axis=1, keepdims=True)
 
-        statistics['mean'] = np.mean(X, axis=0)
-        statistics['std'] = np.std(X, axis=0, ddof=1)
+        x = (x - statistics['mean']) / statistics['std']
 
-        pca = PCA(n_components=3)
-        pca.fit(np.reshape(X - statistics['mean'], [len(X), np.prod(X.shape[1:])]))
+        cov_n = max(x.shape[1] - 1, 1)
+        cov = np.matmul(np.swapaxes(x, -1, -2), x) / cov_n
 
-        statistics['eig_vec'] = np.transpose(np.reshape(pca.components_, [3, X.shape[1], X.shape[1], 3]),
-                                             axes=(1, 2, 3, 0))
-        statistics['eig_val'] = pca.explained_variance_
-
-        # np.save(self.root_dir + 'statistics.npy', statistics)
+        statistics['U'], statistics['S'], statistics['V'] = np.linalg.svd(cov)
 
         return statistics
+
+    def pca_aug(self, x, index):
+
+        in_shape = x.shape
+        res_shape = (in_shape[0], in_shape[1]*in_shape[2], in_shape[3])
+        alphas = np.random.randn(*self.statistics['S'][index].shape) * 0.1
+
+        delta = np.squeeze(np.matmul(self.statistics['U'][index], np.expand_dims(alphas * self.statistics['S'][index], axis=-1)))
+        delta = np.expand_dims(delta, axis=1)
+        delta = delta * self.statistics['std'][index]
+
+        delta = np.broadcast_to(delta, res_shape)
+        delta = delta.reshape(-1, *in_shape[1:])
+        x_aug = x + delta
+
+        return x_aug
 
     def __len__(self):
 
@@ -94,24 +107,22 @@ class ImagenetteGenerator_inmem(Sequence):
 
     def __getitem__(self, item):
 
-        indexes = self.indexes[item * self.batch_size:(item + 1) * self.batch_size]
+        index = self.indexes[item * self.batch_size:(item + 1) * self.batch_size]
 
-        X = self.X[indexes]
-        y = self.y[indexes]
+        x = self.X[index]
+        y = self.y[index]
 
         if not self.val:
-            X = self.augmenter.flow(X, batch_size=len(X), shuffle=False).next()
-            Xc = []
+            x = self.pca_aug(x, index)
+            x = self.augmenter.flow(x, batch_size=len(x), shuffle=False).next()
+            xc = []
 
-            for img in X:
-                img += np.matmul(self.statistics['eig_vec'],
-                                 np.random.normal(scale=0.1, size=3) * self.statistics['eig_val'])
+            for img in x:
+                xc.append(random_crop(img, (self.crop_size, self.crop_size)))
 
-                Xc.append(random_crop(img, (self.crop_size, self.crop_size)))
+            x = np.array(xc, dtype=np.float32)
 
-            X = np.array(Xc, dtype=np.float32)
-
-        return X, to_categorical(y, 10)
+        return x, to_categorical(y, 10)
 
 
 class ImagenetteGenerator(Sequence):
@@ -187,16 +198,15 @@ class ImagenetteGenerator(Sequence):
 
         for filename, label in zip(self.image_filenames, self.labels):
             img = mpimg.imread(filename)
+            img = img.astype(np.float32) / 255.0
             if len(img.shape) < 3:
-                img = np.tile(img.astype(np.float32)[..., np.newaxis], [1, 1, self.channels])
+                img = np.tile(img[..., np.newaxis], [1, 1, self.channels])
             img = resize(img, [self.res_shape, self.res_shape, self.channels], anti_aliasing=True, mode='reflect')
 
             X.append(img)
             y.append(label)
 
         X = np.array(X, dtype=np.float32)
-
-        X[np.max(X, axis=(1, 2, 3)) > 1] /= 255.0
         y = np.array(y, dtype='uint8')
 
         np.savez(self.dset_dir + 'data.npz', X, y, self.class_mapping)
