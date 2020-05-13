@@ -6,6 +6,7 @@ from tensorflow.python.keras.models import load_model
 
 import tensorflow as tf
 from tensorflow.python.framework import ops
+from tensorflow.python.keras.optimizers import SGD
 from tensorflow.python.keras.utils import to_categorical
 
 from scripts.run_imagenette import ImagenetteGenerator
@@ -32,7 +33,9 @@ Commandline inputs:
 
  -d IMAGENETTE:
     -m ResNet18 -b 128 -r 1 -p True
-    -m ResNet18_TD -b 128 -r 1 -p True
+    -m ResNet18_TD -b 64 -r 1 -p True
+    
+NOTE: Use -pr True if you want to use model with pretrained weights.
 '''
 
 def grad_cam_batch(input_model, images, classes, layer_name):
@@ -60,14 +63,13 @@ def grad_cam_batch(input_model, images, classes, layer_name):
     return new_cams
 
 
-def run_gradcam_batch(X, model, layer_name):
+def run_gradcam_batch(X, model, layer_name, batch_size):
 
     N = len(X)
-    y_pred = model.predict(X, batch_size=args.batch_size)
+    y_pred = model.predict(X, batch_size=batch_size)
     top = np.argmax(y_pred, axis=-1)
 
     gradcam = np.empty((X.shape[:-1]))
-    batch_size = args.batch_size
     for i in range((N + batch_size - 1) // batch_size):
         start = i * batch_size
         end = min((i + 1) * batch_size, N)
@@ -76,7 +78,7 @@ def run_gradcam_batch(X, model, layer_name):
     return gradcam, top
 
 
-if __name__ == '__main__':
+def main():
 
     args = parse_input()
     out_path = './../../'
@@ -123,29 +125,44 @@ if __name__ == '__main__':
     if not args.pixel_mean:
         # print("P: ", args.pixel_mean)
         m = 0
-    # print(m.shape)
+
+    if args.pretrained_weights:
+        lr = 0.001
+        if args.dataset == 'IMAGENETTE' and 'TD' in args.model_name:
+            lr = 0.0005
 
     ind = np.arange(len(x_test), dtype=int)
     np.random.seed(0)
     np.random.shuffle(ind)
-    print("Ind: ", ind)
     unshuffle_ind = np.argsort(ind)
 
     gradcam_list = []
     y_pred_list = []
     for r in range(args.repetitions):
         if args.dataset != 'IMAGENETTE':
-            model = load_model(f'{out_path}/output/models/{args.dataset}/{args.model_name}_it{r}.h5')
-            print(f"Loading model: {args.model_name}_it{r}")
-
+            if not args.pretrained_weights:
+                print(f"Loading model: {args.model_name}_it{r}")
+                model = load_model(f'{out_path}output/models/{args.dataset}/{args.model_name}_it{r}.h5')
+            else:
+                from models.models_BUvsTD import select_model
+                print(f"Loading pretrained weights for mdoel: {args.model_name}_it{r}")
+                model = select_model(x_test.shape[1:], args.model_name, SGD(lr, momentum=0.9, nesterov=True), 0)
+                model.load_weights(f'{out_path}output/trained_weights/{args.dataset}/{args.model_name}_it{r}.h5')
             print("Layers: ", layers)
         else:
-            model = load_model(f'{out_path}/output/models/{args.dataset}/{args.model_name}.h5')
+            if not args.pretrained_weights:
+                print(f"Loading model: {args.model_name}")
+                model = load_model(f'{out_path}output/models/{args.dataset}/{args.model_name}.h5')
+            else:
+                from models.models_imagenette import select_model
+                print(f"Loading pretrained weights for mdoel: {args.model_name}")
+                model = select_model(x_test.shape[1:], args.model_name, SGD(lr, momentum=0.9, nesterov=True), 1e-3)
+                model.load_weights(f'{out_path}output/trained_weights/{args.dataset}/{args.model_name}.h5')
 
-        model.evaluate(x_test - m, to_categorical(y_test), batch_size=args.batch_size)
+        model.evaluate(x_test[ind] - m, to_categorical(y_test[ind], 10), batch_size=args.batch_size)
         gradcam = {}
         for layer in layers:
-            g, y_pred = run_gradcam_batch(x_test[ind] - m, model, layer)
+            g, y_pred = run_gradcam_batch(x_test[ind] - m, model, layer, args.batch_size)
             gradcam[layer] = g[unshuffle_ind].astype(np.float32)
             print(gradcam[layer].shape, gradcam[layer].dtype)
 
@@ -153,3 +170,9 @@ if __name__ == '__main__':
         y_pred_list.append(y_pred[unshuffle_ind])
 
     np.savez(f'{out_path}output/gradcam/{args.model_name}_{args.dataset}_gradcam', gradcam_list, y_pred_list)
+
+
+if __name__ == '__main__':
+    main()
+
+

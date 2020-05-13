@@ -15,42 +15,45 @@ from tensorflow.python.keras.utils import to_categorical
 
 from lib.helper_functions import normalization, batch_generator, ind_perturbed, unshuffle_index, distance
 from models.models_BUvsTD import select_model
-from scripts.run_BUvsTD import preprocessing, parse_input
+from scripts.run_BUvsTD import parse_input
 
 
 '''
 Script for running the 2nd, Adversarial robustness experiment.
-Set -abl True, for assessing the input robustness of a TD network.
 '''
 
 '''
 Commandline inputs: 
 
  -d MNIST
-    -m LeNetFC -r 3 -b 128 -ab 128 
-    -m LeNetFC_TD -r 3 -b 128 -ab 128 -w 0 -abl True
-    -m NIN_light -r 3 -b 128 -ab 128
-    -m NIN_light_TD -r 3 -b 128 -ab 128 -w 0 -abl True
+    -m LeNetFC -r 3 -b 128 -ab 128 -sh True (-w 0)
+    -m LeNetFC_TD -r 3 -b 128 -ab 128 -w 0 -abl True -sh True
+    -m NIN_light -r 3 -b 128 -ab 128 -sh True (-w 0)
+    -m NIN_light_TD -r 3 -b 128 -ab 128 -w 0 -abl True -sh True
 
  -d FMNIST (Fashion-MNIST)
-    -m LeNetFC -r 3 -b 128 -ab 128
-    -m LeNetFC_TD -r 3 -b 128 -ab 128 -w 0 -abl True
-    -m NIN_light -l -r 3 -b 128 -ab 128
-    -m NIN_light_TD -r 3 -b 128 -ab 128 -w 0 -abl True
+    -m LeNetFC -r 3 -b 128 -ab 128 -sh True (-w 0)
+    -m LeNetFC_TD -r 3 -b 128 -ab 128 -w 0 -abl True -sh True
+    -m NIN_light -l -r 3 -b 128 -ab 128 -sh True (-w 0)
+    -m NIN_light_TD -r 3 -b 128 -ab 128 -w 0 -abl True -sh True
 
  -d CIFAR10
-    -m ResNet -r 3 -b 128 -ab 128 -p True
-    -m ResNet_TD -r 3 -b 128 -ab 128 -p True -w 5e-4 -abl True
-    -m NIN -r 3 -b 128 -ab 128 -p True
-    -m NIN_TD -r 3 -b 128 -ab 128 -p True -w 5e-4 -abl True
+    -m ResNet -r 3 -b 128 -ab 128 -p True -sh True (-w 5e-4)
+    -m ResNet_TD -r 3 -b 128 -ab 128 -p True -w 5e-4 -abl True -sh True
+    -m NIN -r 3 -b 128 -ab 128 -p True -sh True (-w 5e-4)
+    -m NIN_TD -r 3 -b 128 -ab 128 -p True -w 5e-4 -abl True -sh True
 
     augmented cases:
-    -m ResNet -r 3 -b 128 -ab 128 -p True -ex aug 
-    -m ResNet_TD -r 3 -b 128 -ab 128 -p True -ex aug -w 1e-4 -abl True
-    -m NIN -r 3 -b 128 -ab 128 -p True -ex aug
-    -m NIN_TD -r 3 -b 128 -ab 128 -p True -ex aug -w 1e-4 -abl True
+    -m ResNet -r 3 -b 128 -ab 128 -p True -ex aug -sh True (-w 1e-4)
+    -m ResNet_TD -r 3 -b 128 -ab 128 -p True -ex aug -w 1e-4 -abl True -sh True
+    -m NIN -r 3 -b 128 -ab 128 -p True -ex aug -sh True (-w 1e-4)
+    -m NIN_TD -r 3 -b 128 -ab 128 -p True -ex aug -w 1e-4 -abl True -sh True
 
 NOTE: The _uni and _rev TD variants share the inputs of the corresponding TD.
+      Use -pr True if you want to use model with pretrained weights and specify 
+      the weight decay -w given in parenenthesis.
+      If there is an extension to the filename with the model checkpoint, e.g.
+      NINFC_TD_it0.h5 you need to specify -m NINFC_TD -ex it0.
 '''
 
 
@@ -59,6 +62,7 @@ def setup():
     args = parse_input()
     out_path = './../../output/'
     filepath = {'models': out_path + 'models/',
+                'trained_weights': out_path + 'trained_weights/',
                 'output': out_path + 'adversarial/output/'}
 
     if args.extension is not None:
@@ -160,7 +164,15 @@ def foolbox_attack(name, model):
 def run_attacks(args, filepath, x_test, y_test, y_test_onehot, attacks, m_train, save_all=True):
 
     base_model_name = args.model_name
-    model = load_model(filepath['models'] + filepath['dataset'] + base_model_name + '.h5')
+    if args.extension is not None:
+        base_model_name = re.sub('_' + args.extension, '', base_model_name)
+
+    if not args.pretrained_weights:
+        model = load_model(filepath['models'] + filepath['dataset'] + args.model_name + '.h5')
+    else:
+        model = select_model(x_test.shape[1:], base_model_name, SGD(0.001, momentum=0.9, nesterov=True), args.weight_decay)
+        print(f"Loading pretrained weights for model: {base_model_name}")
+        model.load_weights(filepath['trained_weights'] + filepath['dataset'] + args.model_name + '.h5')
 
     if args.pixel_mean:
         fb_model = foolbox.models.TensorFlowModel.from_keras(model=model, bounds=(0., 1.), preprocessing={'mean': m_train})
@@ -168,7 +180,7 @@ def run_attacks(args, filepath, x_test, y_test, y_test_onehot, attacks, m_train,
         m_train = 0
         fb_model = foolbox.models.TensorFlowModel.from_keras(model=model, bounds=(0., 1.))
 
-    print("Model: ", base_model_name)
+    print("Model: ", args.model_name)
     test_loss, test_acc = model.evaluate(x_test - m_train, y_test_onehot, batch_size=args.batch_size, verbose=0)
     y_pred = np.argmax(model.predict(x_test - m_train, batch_size=args.batch_size), axis=-1)
     or_acc = np.sum(y_test == y_pred)
@@ -178,7 +190,7 @@ def run_attacks(args, filepath, x_test, y_test, y_test_onehot, attacks, m_train,
     # For extracting statistics. Initialising with empty lists
     if os.path.exists(filepath['output'] + filepath['dataset'] + args.model_name + '.npz'):
         print(f"Resuming attacks for model: {args.model_name}")
-        npzfile = np.load(filepath['output'] + filepath['dataset'] +args.model_name + '.npz', allow_pickle=True)
+        npzfile = np.load(filepath['output'] + filepath['dataset'] + args.model_name + '.npz', allow_pickle=True)
         labels = npzfile['arr_0'].item()
         perturbed = npzfile['arr_1'].item()
         distances = npzfile['arr_2'].item()
@@ -225,6 +237,7 @@ def run_attacks(args, filepath, x_test, y_test, y_test_onehot, attacks, m_train,
             label = np.array(label)
             dist = np.array(dist)
             pert = np.array(pert)
+            # print(f"label: {label.shape}, dist: {dist.shape}, pert: {pert.shape}")
 
             if args.shuffle:
                 unshuffle_ind = unshuffle_index(batch_ind)
@@ -256,8 +269,8 @@ def run_attacks(args, filepath, x_test, y_test, y_test_onehot, attacks, m_train,
                 if np.sum(ind) > 0:
                     labels[a][ind] = label[ind]
                     distances[a][ind] = dist[ind]
-                    print("Pert: ", pert[ind].shape)
-                    print("PP: ", perturbed[a][ind].shape)
+                    # print("Pert: ", pert[ind].shape)
+                    # print("PP: ", perturbed[a][ind].shape)
                     perturbed[a][ind] = pert[ind]
                     l2_distances[a][ind] = l2_dist[ind]
 
@@ -268,7 +281,6 @@ def run_attacks(args, filepath, x_test, y_test, y_test_onehot, attacks, m_train,
 
     if args.ablation:
         dict_loss, dict_acc = ablation(args, model, x_test-m_train, y_test_onehot, distances, perturbed, m_train)
-    # print("Dict acc: ", dict_acc)
 
     sorted_distances, adv_acc = to_nparray(sorted_distances), to_nparray(adv_acc)
     SR, confidence, ptb, ptbr = attack_statistics(args, model, x_test, distances, perturbed, or_acc, m_train)
@@ -301,14 +313,14 @@ def convert_object_array(array, in_shape, ind_pert, value_None=-1.0, dtype=int):
     return np_array.astype(dtype)
 
 
-def to_nparray(dict):
+def to_nparray(d):
 
-    keys = list(dict.keys())
+    keys = list(d.keys())
 
     for key in keys:
-        dict[key] = np.array(dict[key])
+        d[key] = np.array(d[key])
 
-    return dict
+    return d
 
 
 def extract_perturbed(distances, perturbed):
@@ -395,7 +407,8 @@ def ablation(args, model, x_test, y_test_onehot, distances, perturbed, m_train):
 
     print(base_model_name)
 
-    multi_model = select_model(x_test.shape[1:], base_model_name, optimizer=SGD(0.001), weight_decay=args.weight_decay)
+    multi_model = select_model(x_test.shape[1:], base_model_name, optimizer=SGD(0.001, momentum=0.9, nesterov=True),
+                               weight_decay=args.weight_decay)
     multi_model.set_weights(model.get_weights())
 
     for a, i in zip(attacks, range(len(attacks))):
@@ -407,16 +420,24 @@ def ablation(args, model, x_test, y_test_onehot, distances, perturbed, m_train):
             x_adv[ind] = perturbed[a][ind] - m_train
 
         loss[i, 0], acc[i, 0] = model.evaluate(x_test, y_test_onehot, batch_size=args.batch_size, verbose=0)
-        loss[i, 1], acc[i, 1] = multi_model.evaluate([x_test, x_test, x_test], y_test_onehot, batch_size=args.batch_size, verbose=0)
+        loss[i, 1], acc[i, 1] = multi_model.evaluate([x_test, x_test, x_test], y_test_onehot,
+                                                     batch_size=args.batch_size, verbose=0)
 
-        loss[i, 2], acc[i, 2] = multi_model.evaluate([x_adv, x_test, x_test], y_test_onehot, batch_size=args.batch_size, verbose=0)
-        loss[i, 3], acc[i, 3] = multi_model.evaluate([x_test, x_adv, x_test], y_test_onehot, batch_size=args.batch_size, verbose=0)
-        loss[i, 4], acc[i, 4] = multi_model.evaluate([x_test, x_test, x_adv], y_test_onehot, batch_size=args.batch_size, verbose=0)
+        loss[i, 2], acc[i, 2] = multi_model.evaluate([x_adv, x_test, x_test], y_test_onehot,
+                                                     batch_size=args.batch_size, verbose=0)
+        loss[i, 3], acc[i, 3] = multi_model.evaluate([x_test, x_adv, x_test], y_test_onehot,
+                                                     batch_size=args.batch_size, verbose=0)
+        loss[i, 4], acc[i, 4] = multi_model.evaluate([x_test, x_test, x_adv], y_test_onehot,
+                                                     batch_size=args.batch_size, verbose=0)
 
-        loss[i, 5], acc[i, 5] = multi_model.evaluate([x_adv, x_adv, x_test], y_test_onehot, batch_size=args.batch_size, verbose=0)
-        loss[i, 6], acc[i, 6] = multi_model.evaluate([x_adv, x_test, x_adv], y_test_onehot, batch_size=args.batch_size, verbose=0)
-        loss[i, 7], acc[i, 7] = multi_model.evaluate([x_test, x_adv, x_adv], y_test_onehot, batch_size=args.batch_size, verbose=0)
-        loss[i, 8], acc[i, 8] = multi_model.evaluate([x_adv, x_adv, x_adv], y_test_onehot, batch_size=args.batch_size,
+        loss[i, 5], acc[i, 5] = multi_model.evaluate([x_adv, x_adv, x_test], y_test_onehot,
+                                                     batch_size=args.batch_size, verbose=0)
+        loss[i, 6], acc[i, 6] = multi_model.evaluate([x_adv, x_test, x_adv], y_test_onehot,
+                                                     batch_size=args.batch_size, verbose=0)
+        loss[i, 7], acc[i, 7] = multi_model.evaluate([x_test, x_adv, x_adv], y_test_onehot,
+                                                     batch_size=args.batch_size, verbose=0)
+        loss[i, 8], acc[i, 8] = multi_model.evaluate([x_adv, x_adv, x_adv], y_test_onehot,
+                                                     batch_size=args.batch_size,
                                                      verbose=0)
 
         dict_loss[a] = loss[i]
@@ -431,7 +452,7 @@ def main():
 
     args, filepath = setup()
 
-    print("Shuffle:", args.shuffle)
+    # print("Shuffle:", args.shuffle)
     attacks = ['SinglePixelAttack', 'SpatialAttack', 'ShiftsAttack', 'PointwiseAttack',
                'GaussianBlurAttack', 'ContrastReductionAttack', 'AdditiveUniformNoiseAttack',
                'AdditiveGaussianNoiseAttack', 'S&P', 'BlendedUniformNoiseAttack']

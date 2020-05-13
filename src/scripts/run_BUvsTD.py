@@ -58,7 +58,7 @@ def parse_input():
                         help='dataset, choices {%(choices)s}')
     parser.add_argument('-m', '--model_name', type=str, metavar='STRING', help='model name')
     parser.add_argument('-l', '--learning_rate', type=float, metavar='NUMBER', help='base learning rate')
-    parser.add_argument('-w', '--weight_decay', type=float, metavar='NUMBER', help='regularization weight decay')
+    parser.add_argument('-w', '--weight_decay', type=float, metavar='NUMBER', default=0,  help='regularization weight decay')
     parser.add_argument('-e', '--num_epochs', type=int, metavar='NUMBER', help='number of training epochs')
     parser.add_argument('-r', '--repetitions', type=int, metavar='NUMBER', default=1, help='number of repetitions')
     parser.add_argument('-b', '--batch_size', type=int, default=128, metavar='NUMBER', help='batch size(default:128)')
@@ -80,6 +80,7 @@ def parse_input():
     parser.add_argument('-t', '--target_class', type=int, default=None, help='target class for targeted attack')
     parser.add_argument('-sh', '--shuffle', type=bool, default=False, metavar='BOOL', help='shuffle')
     parser.add_argument('-im', '--class_imbalance', type=bool, default=False, metavar='BOOL', help='class imbalance')
+    parser.add_argument('-pr', '--pretrained_weights', type=bool, default=False, metavar='BOOL', help='use pretrained weights')
 
     args = parser.parse_args()
 
