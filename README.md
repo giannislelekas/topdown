@@ -45,7 +45,7 @@ For citing Top-Down Networks, please use the following:
 @inproceedings{lelekas2020,
   title={Top-Down Networks: A coarse-to-fine reimagination of CNNs},
   author={I Lelekas and N Tomen and SL Pintea and JC van Gemert},
-  journal={CVPR 2020 Workshop on Deep Vision},
+  booktitle={CVPR 2020 Workshop on Deep Vision},
   year={2020}
 }
 ```
