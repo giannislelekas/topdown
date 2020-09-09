@@ -35,9 +35,11 @@ This repository is organized as follows:
 All scripts for running the experiments are in `src/scripts/`. Command line inputs are given as comments within the scripts.
 
 You may run the adversarial robustness (`run_adversarial_attacks.py`) and the localization experiment (`run_gradcam.py`) using models with pretrained weights.
-To this goal, download ([link](https://drive.google.com/file/d/1u_vxw2b6HqC9LuSRiA6IC27DneIuzQdr/view?usp=sharing)) and extract `trained_weights.zip` and then place it under `src/output`, as shown in the repository organization section.
+To this goal, download ([link](https://drive.google.com/file/d/1cmO2sVblJ087ZQAEwQVgbyXUI2Gw96NQ/view?usp=sharing)) and extract `trained_weights.zip` and then place it under `src/output`, as shown in the repository organization section.
 
 Otherwise, you need to train models from scratch using the corresponding scripts  (`src.scripts.run_BUvsTD.py` and `src.scripts.run_imagenette.py`).
+
+The MD5 checksum of `trained_weights.zip`: 825009852499cb03781e45b905129615
 
 ## Citation:
 For citing Top-Down Networks, please use the following:
